@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slither Pro</title>
+<style>
+body { margin:0; overflow:hidden; background:#111; color:white; font-family:Arial;}
+#score { position:fixed; top:10px; left:10px; }
+canvas { display:block; }
+</style>
+</head>
+<body>
+
+<div id="score">Score: 0</div>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let mouse = {x: canvas.width/2, y: canvas.height/2};
+let boosting = false;
+
+document.addEventListener("mousemove", e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+});
+document.addEventListener("mousedown", () => boosting = true);
+document.addEventListener("mouseup", () => boosting = false);
+
+class Snake {
+    constructor(x,y,color,isBot=false){
+        this.x=x;
+        this.y=y;
+        this.body=[];
+        this.length=30;
+        this.speed=2;
+        this.color=color;
+        this.isBot=isBot;
+        this.alive=true;
+
+        for(let i=0;i<this.length;i++){
+            this.body.push({x:this.x,y:this.y});
+        }
+    }
+
+    update(targetX,targetY){
+        if(!this.alive) return;
+
+        let dx = targetX - this.x;
+        let dy = targetY - this.y;
+        let angle = Math.atan2(dy,dx);
+
+        let spd = this.speed;
+        if(!this.isBot && boosting){
+            spd = 4;
+            this.length -= 0.1;
+        }
+
+        this.x += Math.cos(angle)*spd;
+        this.y += Math.sin(angle)*spd;
+
+        this.body.unshift({x:this.x,y:this.y});
+        if(this.body.length > this.length) this.body.pop();
+    }
+
+    draw(){
+        if(!this.alive) return;
+        this.body.forEach((p,i)=>{
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        });
+    }
+}
+
+let player = new Snake(2000,2000,"lime");
+let bots = [];
+for(let i=0;i<8;i++){
+    bots.push(new Snake(Math.random()*4000, Math.random()*4000, "red", true));
+}
+
+let foods = [];
+for(let i=0;i<400;i++){
+    foods.push({
+        x:Math.random()*4000,
+        y:Math.random()*4000
+    });
+}
+
+function eatFood(snake){
+    foods.forEach((f,i)=>{
+        let dx = snake.x - f.x;
+        let dy = snake.y - f.y;
+        if(Math.sqrt(dx*dx+dy*dy)<10){
+            snake.length += 5;
+            foods[i] = {
+                x:Math.random()*4000,
+                y:Math.random()*4000
+            };
+        }
+    });
+}
+
+function checkCollision(a,b){
+    for(let i=5;i<b.body.length;i++){
+        let dx=a.x-b.body[i].x;
+        let dy=a.y-b.body[i].y;
+        if(Math.sqrt(dx*dx+dy*dy)<6){
+            a.alive=false;
+        }
+    }
+}
+
+function drawFoods(camera){
+    foods.forEach(f=>{
+        ctx.beginPath();
+        ctx.arc(f.x-camera.x, f.y-camera.y, 3, 0, Math.PI*2);
+        ctx.fillStyle="yellow";
+        ctx.fill();
+    });
+}
+
+function drawSnake(snake,camera){
+    snake.body.forEach(p=>{
+        ctx.beginPath();
+        ctx.arc(p.x-camera.x, p.y-camera.y, 6, 0, Math.PI*2);
+        ctx.fillStyle=snake.color;
+        ctx.fill();
+    });
+}
+
+function gameLoop(){
+    ctx.fillStyle="#111";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    let zoom = Math.max(0.3, 1 - player.length/500);
+    ctx.save();
+    ctx.scale(zoom, zoom);
+
+    let camera = {
+        x: player.x - canvas.width/(2*zoom),
+        y: player.y - canvas.height/(2*zoom)
+    };
+
+    drawFoods(camera);
+
+    player.update(
+        mouse.x/zoom + camera.x,
+        mouse.y/zoom + camera.y
+    );
+    eatFood(player);
+
+    bots.forEach(bot=>{
+        let target = foods[Math.floor(Math.random()*foods.length)];
+        bot.update(target.x,target.y);
+        eatFood(bot);
+
+        checkCollision(bot, player);
+        checkCollision(player, bot);
+    });
+
+    if(!player.alive){
+        alert("Game Over! Score: "+Math.floor(player.length));
+        location.reload();
+    }
+
+    drawSnake(player,camera);
+    bots.forEach(b=>drawSnake(b,camera));
+
+    ctx.restore();
+
+    document.getElementById("score").innerText =
+        "Score: " + Math.floor(player.length);
+
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
